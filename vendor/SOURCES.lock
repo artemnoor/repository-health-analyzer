@@ -65,7 +65,7 @@
       "build": "go build -buildvcs=false -o ../../bin/repohealth ./cmd/repohealth",
       "test": "go test ./...",
       "adapter": "repohealth JSON subprocess adapter",
-      "sentinels": ["cmd/repohealth/main.go", "internal/checks", "internal/report"],
+      "sentinels": ["cmd/repohealth/main.go", "internal/checks", "internal/scoring/engine.go"],
       "last_verified": "2026-09-10"
     },
     {
