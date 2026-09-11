@@ -5,6 +5,10 @@ import pytest
 
 from repowise.core.persistence.models import HealthScoreProjection, RepositoryHealthSnapshot
 from repowise.server.routers.code_health.canonical import build_canonical_health_report
+from repowise.server.schemas.code_health import (
+    CanonicalHealthReport,
+    CanonicalHealthScoreProjectionResponse,
+)
 from tests.unit.persistence.helpers import insert_repo
 
 
@@ -55,3 +59,53 @@ async def test_canonical_reads_the_materialized_score_projection(session) -> Non
     assert payload["score_projection"]["overall_score"] == 73
     assert payload["meta"]["score_recomputed"] is True
     assert {row["dimension"] for row in payload["dimensions"]} == {"code", "security"}
+
+
+def _canonical_payload(score: float | None, *, include_projection: bool = True) -> dict:
+    payload = {
+        "schema_version": 1,
+        "repository_id": "repo-1",
+        "snapshot": {"id": "snapshot-1", "score": 9.1},
+        "dimensions": [],
+        "metrics": [],
+        "findings": [],
+        "recommendations": [],
+        "analyzers": [],
+        "coverage": {},
+        "limitations": [],
+        "criticality": {},
+        "meta": {},
+    }
+    if include_projection:
+        payload["score_projection"] = {
+            "id": "projection-1",
+            "score_config_digest": "digest",
+            "overall_score": score,
+            "dimensions": {"code": score},
+            "breakdown": [{"dimension": "code", "score": score}],
+            "configured_weight": 1,
+            "available_weight": 1,
+            "confidence": 0.9,
+            "coverage": 1,
+            "evidence_coverage": 1,
+            "status": "pass",
+            "limitations": [],
+            "score_recomputed": False,
+        }
+    return payload
+
+
+@pytest.mark.parametrize("score", [82.5, 0, None])
+def test_canonical_projection_is_typed_and_keeps_zero_distinct_from_unavailable(score) -> None:
+    report = CanonicalHealthReport.model_validate(_canonical_payload(score))
+
+    assert isinstance(report.score_projection, CanonicalHealthScoreProjectionResponse)
+    assert report.score_projection.overall_score == score
+    assert report.snapshot["score"] == 9.1
+
+
+def test_missing_projection_remains_unavailable_without_legacy_fallback() -> None:
+    report = CanonicalHealthReport.model_validate(_canonical_payload(None, include_projection=False))
+
+    assert report.score_projection is None
+    assert report.snapshot["score"] == 9.1

@@ -1227,6 +1227,45 @@ export interface CanonicalHealthAnalyzer {
   diagnostics: Record<string, unknown>;
 }
 
+export interface CanonicalHealthScoreBreakdown {
+  dimension: string;
+  score: number | null;
+  analyzer_id?: string;
+  source?: string;
+  weight?: number;
+  confidence?: number;
+  evidence_coverage?: number;
+  metric_name?: string | null;
+  denominator?: number | null;
+  status?: CanonicalHealthStatus;
+  configured_dimension_weight?: number;
+  [key: string]: unknown;
+}
+
+export interface CanonicalHealthScoreLimitation {
+  reason: string;
+  kind: string;
+  affected_scope?: string | null;
+  evidence_refs?: HealthEvidenceRef[];
+  [key: string]: unknown;
+}
+
+export interface CanonicalHealthScoreProjection {
+  id: string;
+  score_config_digest: string;
+  overall_score: number | null;
+  dimensions: Record<string, number | null>;
+  breakdown: CanonicalHealthScoreBreakdown[];
+  configured_weight: number;
+  available_weight: number;
+  confidence: number;
+  coverage: number;
+  evidence_coverage: number;
+  status: CanonicalHealthStatus;
+  limitations: CanonicalHealthScoreLimitation[];
+  score_recomputed: boolean;
+}
+
 export interface CanonicalHealthReport {
   schema_version: number;
   repository_id: string;
@@ -1253,21 +1292,7 @@ export interface CanonicalHealthReport {
     is_stale: boolean;
     diagnostics: Record<string, unknown>;
   };
-  score_projection?: {
-    id: string;
-    score_config_digest: string;
-    overall_score: number | null;
-    dimensions: Record<string, number | null>;
-    breakdown: unknown[];
-    configured_weight: number;
-    available_weight: number;
-    confidence: number;
-    coverage: number;
-    evidence_coverage: number;
-    status: CanonicalHealthStatus;
-    limitations: unknown[];
-    score_recomputed: boolean;
-  } | null;
+  score_projection?: CanonicalHealthScoreProjection | null;
   dimensions: CanonicalHealthDimension[];
   metrics: CanonicalHealthMetric[];
   findings: CanonicalHealthFinding[];

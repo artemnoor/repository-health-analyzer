@@ -3,10 +3,14 @@ import Link from "next/link";
 import { ArrowDown, ArrowUp, Minus, ShieldAlert } from "lucide-react";
 import type { HealthRankingEntry } from "@repowise-dev/types/health-ranking";
 import { formatDateTime } from "@repowise-dev/ui/lib/format";
-import { healthBand100, healthBandColor } from "@repowise-dev/ui/health/tokens";
+import {
+  rankingHealthBandColor,
+  rankingHealthBandForEntry,
+  rankingHealthBandLabel,
+} from "@repowise-dev/ui/health/ranking-tokens";
 
-function scoreColor(score: number | null): string | undefined {
-  return score == null ? undefined : healthBandColor(healthBand100(score));
+function scoreColor(score: number | null, band: string | undefined): string {
+  return rankingHealthBandColor(rankingHealthBandForEntry(band, score));
 }
 
 function percentage(value: number): string {
@@ -66,6 +70,7 @@ export function RankingTable({
         <tbody className="divide-y divide-[var(--color-border-default)]">
           {entries.map((entry, index) => {
             const score = entry.overall_score;
+            const band = rankingHealthBandForEntry(entry.band, score);
             const stale = entry.stale;
             const selected = selectedIds?.includes(entry.repository_id) ?? false;
             return (
@@ -104,11 +109,15 @@ export function RankingTable({
                 <td className="px-3 py-3.5 text-right align-top">
                   <span
                     className="text-xl font-semibold tabular-nums"
-                    style={{ color: scoreColor(score) }}
+                    style={{ color: scoreColor(score, entry.band) }}
+                    aria-label={`Repository score ${score == null ? "unknown" : `${score.toFixed(1)}/100`}`}
                   >
                     {score == null ? "—" : score.toFixed(1)}
                   </span>
                   <span className="ml-1 text-xs text-[var(--color-text-tertiary)]">/100</span>
+                  <span className="mt-1 block text-[10px] text-[var(--color-text-tertiary)]">
+                    {rankingHealthBandLabel(band)}
+                  </span>
                 </td>
                 <td className="px-3 py-3.5 align-top">
                   <span className="font-semibold text-[var(--color-text-primary)]">{entry.grade}</span>

@@ -65,6 +65,7 @@ from .health_envelope import (
 )
 from .health_ranking import (
     list_health_ranking,
+    list_health_ranking_facets,
     list_health_ranking_trend,
     publish_health_ranking,
     rebuild_health_ranking,
@@ -138,6 +139,7 @@ __all__ = [
     "get_test_coverage_summary",
     "list_evidence_for_opportunities",
     "list_health_ranking",
+    "list_health_ranking_facets",
     "list_health_ranking_trend",
     "list_health_snapshots",
     "list_opportunity_evidence",

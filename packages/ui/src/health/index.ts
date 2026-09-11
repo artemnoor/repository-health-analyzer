@@ -1,4 +1,5 @@
 export * from "./tokens";
+export * from "./ranking-tokens";
 export * from "./biomarker-glossary";
 export * from "./biomarker-chip";
 export * from "./file-table";

@@ -386,6 +386,22 @@ same 2,770 files and the same defect labels, ranking by repowise health surfaces
 
 Guides: **[code health](docs/layers/CODE_HEALTH.md)** · **[refactoring](docs/layers/REFACTORING.md)**
 
+For repository-level health, the canonical projection is a versioned `0–100`
+score shared by the detail page, REST, MCP, CLI and public ranking. File/module
+KPIs keep their legacy `0–10` scale and are not substituted into that headline;
+`0` is measured, while `null`/skipped data stays unavailable. See the
+[health analyzer reference](docs/reference/HEALTH_ANALYZER.md) and
+[repository-health architecture](docs/architecture/repository-health.md).
+
+Focused verification:
+
+```bash
+make health-contract
+```
+
+The native/toolchain gate is separate: `make health-replay` must be reported
+independently if a vendor check stalls or is platform-conditional.
+
 ---
 
 ## See all of it

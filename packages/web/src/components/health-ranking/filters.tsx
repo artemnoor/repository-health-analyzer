@@ -3,6 +3,10 @@
 import * as React from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@repowise-dev/ui/ui/button";
+import {
+  HEALTH_RANKING_BAND_LABELS,
+  type HealthRankingBand,
+} from "@repowise-dev/types/health-ranking";
 
 export interface RankingFilterState {
   page: number;
@@ -24,6 +28,21 @@ export const DEFAULT_RANKING_FILTERS: RankingFilterState = {
   eligibility: "eligible",
 };
 
+const RANKING_BANDS: readonly HealthRankingBand[] = [
+  "excellent",
+  "good",
+  "fair",
+  "weak",
+  "critical",
+  "unknown",
+];
+
+function rankingBand(value: string): HealthRankingBand | undefined {
+  return (RANKING_BANDS as readonly string[]).includes(value)
+    ? (value as HealthRankingBand)
+    : undefined;
+}
+
 export function rankingFiltersFromSearch(search: string): RankingFilterState {
   const params = new URLSearchParams(search);
   const freshness = params.get("stale");
@@ -39,10 +58,11 @@ export function rankingFiltersFromSearch(search: string): RankingFilterState {
 }
 
 export function rankingQueryForFilters(filters: RankingFilterState) {
+  const band = rankingBand(filters.band);
   return {
     page: filters.page,
     limit: 50,
-    ...(filters.band ? { band: filters.band } : {}),
+    ...(band ? { band } : {}),
     ...(filters.dimension ? { dimension: filters.dimension } : {}),
     ...(filters.language ? { language: filters.language } : {}),
     ...(filters.status ? { status: filters.status } : {}),
@@ -75,11 +95,11 @@ export function RankingFilters({
       </div>
       <SelectFilter label="Band" value={value.band} onChange={(band) => onChange({ band })}>
         <option value="">All bands</option>
-        <option value="excellent">Excellent (90–100)</option>
-        <option value="good">Good (75–89)</option>
-        <option value="fair">Fair (60–74)</option>
-        <option value="weak">Weak (40–59)</option>
-        <option value="critical">Critical (0–39)</option>
+        <option value="excellent">{HEALTH_RANKING_BAND_LABELS.excellent}</option>
+        <option value="good">{HEALTH_RANKING_BAND_LABELS.good}</option>
+        <option value="fair">{HEALTH_RANKING_BAND_LABELS.fair}</option>
+        <option value="weak">{HEALTH_RANKING_BAND_LABELS.weak}</option>
+        <option value="critical">{HEALTH_RANKING_BAND_LABELS.critical}</option>
       </SelectFilter>
       <SelectFilter
         label="Dimension"

@@ -39,6 +39,18 @@ const DIMENSIONS = [
   "docs",
 ];
 
+export function rankingFacetValues(
+  data: Pick<HealthRankingResponse, "items" | "facets"> | undefined,
+): { dimensions: string[]; languages: string[]; statuses: string[] } {
+  if (data?.facets) return data.facets;
+  const items = data?.items ?? [];
+  return {
+    dimensions: DIMENSIONS,
+    languages: Array.from(new Set(items.flatMap((entry) => entry.languages))).sort(),
+    statuses: Array.from(new Set(items.map((entry) => entry.status))).sort(),
+  };
+}
+
 export function RankingPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -107,8 +119,7 @@ export function RankingPage() {
   const measuredCount = items.filter((entry) => entry.overall_score != null).length;
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
   const showLoading = isLoading && !data;
-  const languages = Array.from(new Set(items.flatMap((entry) => entry.languages))).sort();
-  const statuses = Array.from(new Set(items.map((entry) => entry.status))).sort();
+  const facets = rankingFacetValues(data);
 
   const ribbon: RibbonStat[] = [
     { label: "Public rows", value: data ? formatNumber(data.total) : "—", sub: "eligible by default" },
@@ -157,9 +168,9 @@ export function RankingPage() {
       >
         <RankingFilters
           value={filters}
-          dimensions={DIMENSIONS}
-          languages={languages}
-          statuses={statuses}
+          dimensions={facets.dimensions}
+          languages={facets.languages}
+          statuses={facets.statuses}
           onChange={(next) => updateFilters({ ...next, page: 1 })}
           onReset={resetFilters}
         />

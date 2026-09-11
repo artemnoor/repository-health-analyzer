@@ -60,6 +60,12 @@ async def test_public_ranking_is_public_safe_and_deterministic(client, session) 
     payload = response.json()
     assert payload["total"] == 1
     assert payload["items"][0]["overall_score"] == 88
+    assert payload["items"][0]["band"] == "good"
+    assert payload["facets"] == {
+        "dimensions": ["code", "security"],
+        "languages": [],
+        "statuses": ["pass"],
+    }
     assert "local_path" not in payload["items"][0]
     assert "raw_payload_ref" not in payload["items"][0]
 

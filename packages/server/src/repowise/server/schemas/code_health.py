@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 HealthAnalyzerStatus = Literal[
     "pass",
@@ -78,6 +78,53 @@ class HealthAnalyzerResultResponse(BaseModel):
     diagnostics: dict[str, Any] = Field(default_factory=dict)
 
 
+class CanonicalHealthScoreBreakdownResponse(BaseModel):
+    """Explainable contribution row; unknown future fields remain forward-compatible."""
+
+    model_config = ConfigDict(extra="allow")
+
+    dimension: str
+    score: float | None = Field(default=None, ge=0.0, le=100.0)
+    analyzer_id: str | None = None
+    source: str | None = None
+    weight: float = Field(default=0.0, ge=0.0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    metric_name: str | None = None
+    denominator: int | None = Field(default=None, ge=0)
+    status: HealthAnalyzerStatus | str = "pass"
+    configured_dimension_weight: float = Field(default=0.0, ge=0.0)
+
+
+class CanonicalHealthScoreLimitationResponse(BaseModel):
+    """Why a projection is partial without changing missing data into zero."""
+
+    model_config = ConfigDict(extra="allow")
+
+    reason: str
+    kind: str = "other"
+    affected_scope: str | None = None
+    evidence_refs: list[HealthEvidenceRefResponse] = Field(default_factory=list)
+
+
+class CanonicalHealthScoreProjectionResponse(BaseModel):
+    """Typed repository-level score projection on the canonical 0..100 scale."""
+
+    id: str
+    score_config_digest: str
+    overall_score: float | None = Field(default=None, ge=0.0, le=100.0)
+    dimensions: dict[str, float | None] = Field(default_factory=dict)
+    breakdown: list[CanonicalHealthScoreBreakdownResponse] = Field(default_factory=list)
+    configured_weight: float = Field(default=0.0, ge=0.0)
+    available_weight: float = Field(default=0.0, ge=0.0)
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    status: HealthAnalyzerStatus | str = "inconclusive"
+    limitations: list[CanonicalHealthScoreLimitationResponse] = Field(default_factory=list)
+    score_recomputed: bool = False
+
+
 class CanonicalHealthReport(BaseModel):
     """One read-only health projection consumed by every product surface."""
 
@@ -85,7 +132,7 @@ class CanonicalHealthReport(BaseModel):
     repository_id: str
     snapshot: dict[str, Any]
     dimensions: list[dict[str, Any]] = Field(default_factory=list)
-    score_projection: dict[str, Any] | None = None
+    score_projection: CanonicalHealthScoreProjectionResponse | None = None
     metrics: list[dict[str, Any]] = Field(default_factory=list)
     findings: list[dict[str, Any]] = Field(default_factory=list)
     recommendations: list[dict[str, Any]] = Field(default_factory=list)

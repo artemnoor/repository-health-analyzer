@@ -1,6 +1,10 @@
 import * as React from "react";
 import type { HealthRankingEntry } from "@repowise-dev/types/health-ranking";
-import { healthBand100, healthBandColor } from "@repowise-dev/ui/health/tokens";
+import {
+  rankingHealthBandColor,
+  rankingHealthBandForEntry,
+  rankingHealthBandLabel,
+} from "@repowise-dev/ui/health/ranking-tokens";
 
 const DIMENSION_LABELS: Record<string, string> = {
   code: "Code quality",
@@ -17,13 +21,12 @@ export function ScoreBreakdown({ entries }: { entries: HealthRankingEntry[] }) {
   const dimensions = Array.from(
     new Set(entries.flatMap((entry) => Object.keys(entry.dimensions))),
   ).sort();
-  const distribution = [
-    { label: "Excellent", key: "excellent", count: entries.filter((e) => e.grade === "A").length, color: "var(--color-success)" },
-    { label: "Good", key: "good", count: entries.filter((e) => e.grade === "B").length, color: "var(--color-success)" },
-    { label: "Fair", key: "fair", count: entries.filter((e) => e.grade === "C").length, color: "var(--color-caution)" },
-    { label: "Weak", key: "weak", count: entries.filter((e) => e.grade === "D").length, color: "var(--color-warning)" },
-    { label: "Critical / unknown", key: "critical", count: entries.filter((e) => e.grade === "F" || e.overall_score == null).length, color: "var(--color-error)" },
-  ];
+  const distribution = (["excellent", "good", "fair", "weak", "critical", "unknown"] as const).map((band) => ({
+    label: rankingHealthBandLabel(band),
+    key: band,
+    count: entries.filter((entry) => rankingHealthBandForEntry(entry.band, entry.overall_score) === band).length,
+    color: rankingHealthBandColor(band),
+  }));
   const maxCount = Math.max(1, ...distribution.map((item) => item.count));
 
   return (
@@ -97,7 +100,7 @@ export function EntryDimensionBars({ entry }: { entry: HealthRankingEntry }) {
               className="h-full"
               style={{
                 width: `${Math.max(0, Math.min(100, value ?? 0))}%`,
-                background: value == null ? "var(--color-text-tertiary)" : healthBandColor(healthBand100(value)),
+                background: rankingHealthBandColor(rankingHealthBandForEntry(undefined, value)),
               }}
             />
           </div>

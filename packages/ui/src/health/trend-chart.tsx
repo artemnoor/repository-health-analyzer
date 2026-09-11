@@ -21,6 +21,8 @@ export interface TrendChartProps {
   /** Oldest-first list of snapshots. */
   history: TrendSeriesPoint[];
   height?: number;
+  /** Score domain maximum. Legacy consumers stay on 0–10 by default. */
+  scoreScale?: 10 | 100;
 }
 
 type LineKey =
@@ -50,7 +52,7 @@ function runs<T>(items: T[], has: (item: T) => boolean): number[][] {
   return out;
 }
 
-export function TrendChart({ history, height = 220 }: TrendChartProps) {
+export function TrendChart({ history, height = 220, scoreScale = 10 }: TrendChartProps) {
   if (!history || history.length === 0) {
     return (
       <p className="max-w-[62ch] text-sm text-[var(--color-text-secondary)]">
@@ -68,10 +70,11 @@ export function TrendChart({ history, height = 220 }: TrendChartProps) {
   const padB = 26;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
+  const yTicks = scoreScale === 100 ? [0, 20, 40, 60, 80, 100] : [0, 2, 4, 6, 8, 10];
 
   const xScale = (i: number) =>
     history.length === 1 ? padL + plotW / 2 : padL + (i / (history.length - 1)) * plotW;
-  const yScale = (v: number) => padT + ((10 - v) / 10) * plotH;
+  const yScale = (v: number) => padT + ((scoreScale - v) / scoreScale) * plotH;
 
   const path = (key: LineKey) => {
     const pts: [number, number][] = [];
@@ -134,9 +137,15 @@ export function TrendChart({ history, height = 220 }: TrendChartProps) {
           <Legend dot="bg-[var(--color-error)]" label="Worst" />
         </div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Health KPI trend">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height={H}
+        role="img"
+        aria-label={`Health KPI trend (0–${scoreScale})`}
+      >
         {/* Y grid */}
-        {[0, 2, 4, 6, 8, 10].map((v) => (
+        {yTicks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={W - padR} y1={yScale(v)} y2={yScale(v)} stroke="currentColor" strokeOpacity={0.08} />
             <text x={padL - 6} y={yScale(v) + 3} fontSize={10} textAnchor="end" fill="currentColor" opacity={0.5}>

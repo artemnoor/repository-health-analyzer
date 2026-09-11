@@ -155,6 +155,7 @@ from .health import (
 from .health_ranking import (
     HealthRankingCompareResponse,
     HealthRankingEntryResponse,
+    HealthRankingFacetsResponse,
     HealthRankingResponse,
     HealthRankingTrendPointResponse,
     HealthRankingTrendResponse,
@@ -407,6 +408,7 @@ __all__ = [
     "HealthFindingWithSymbolResponse",
     "HealthRankingCompareResponse",
     "HealthRankingEntryResponse",
+    "HealthRankingFacetsResponse",
     "HealthRankingResponse",
     "HealthRankingTrendPointResponse",
     "HealthRankingTrendResponse",

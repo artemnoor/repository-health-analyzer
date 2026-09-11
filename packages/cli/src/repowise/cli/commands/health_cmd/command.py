@@ -47,11 +47,14 @@ from .persist import (
 from .refactoring_targets import _render_refactoring_targets
 from .summary import (
     _render_badge,
+    _render_canonical_score,
     _render_composition_line,
     _render_defect_accuracy_line,
     _render_distribution_line,
     _render_performance_section,
     _render_split_line,
+    canonical_score_label,
+    canonical_score_markdown,
 )
 from .trends import _render_trend
 
@@ -124,7 +127,10 @@ from .trends import _render_trend
     "explain_view",
     is_flag=True,
     default=False,
-    help="Show persisted snapshot status, evidence coverage and limitations.",
+    help=(
+        "Show persisted snapshot status, evidence coverage and limitations; "
+        "the repository score is 0–100 while file KPIs remain 0–10."
+    ),
 )
 @click.option(
     "--scope",
@@ -448,6 +454,7 @@ def health_command(
     if not file_filter and not module_filter:
         canonical_projection = _load_canonical_health(
             repo_path,
+            scope=parse_scope(scope),
             dimension=dimension_filter,
             subject=subject_filter,
             include_evidence=explain_view,
@@ -548,6 +555,8 @@ def health_command(
                     "read_model": canonical_projection["meta"]["read_model"],
                     "snapshot_id": canonical_projection["snapshot"]["id"],
                     "status": canonical_projection["snapshot"]["status"],
+                    "canonical_repository_health": canonical_score_label(canonical_projection),
+                    "canonical_score_scale": 100,
                     "score_recomputed": canonical_projection["meta"]["score_recomputed"],
                     "coverage": canonical_projection["coverage"],
                     "limitations": canonical_projection["limitations"],
@@ -558,6 +567,8 @@ def health_command(
                     "read_model": "in_process_composition",
                     "score_recomputed": False,
                     "status": composition.status.value,
+                    "canonical_repository_health": canonical_score_label(None),
+                    "canonical_score_scale": 100,
                     "limitations": ["No persisted canonical snapshot available."],
                 }
             )
@@ -608,6 +619,7 @@ def health_command(
         click.echo(f"- **composition_status**: {composition.status.value}")
         click.echo(f"- **composition_schema_version**: {composition.schema_version}")
         if explain_view:
+            click.echo(canonical_score_markdown(canonical_projection))
             if canonical_projection:
                 click.echo(f"- **canonical_snapshot**: {canonical_projection['snapshot']['id']}")
                 click.echo(
@@ -654,6 +666,7 @@ def health_command(
     _render_split_line(kpis)
     _render_composition_line(composition)
     if explain_view:
+        _render_canonical_score(canonical_projection)
         if canonical_projection:
             snapshot = canonical_projection["snapshot"]
             coverage = canonical_projection["coverage"]

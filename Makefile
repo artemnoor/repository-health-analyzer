@@ -2,7 +2,7 @@
         generate-types generate-types-check \
         lint format typecheck clean build-web dev-web help \
         vendor-verify build-native test-python test-native test-composition \
-        health-sample health-replay health-clean health-completion docs-check
+        health-sample health-replay health-clean health-contract health-completion docs-check
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -96,8 +96,10 @@ health-replay:  ## Replay and compare the pinned health fixture
 health-clean:  ## Remove only generated health report files
 	uv run python scripts/health_clean.py
 
-health-completion:  ## Verify the complete repository-health source surface
+health-contract:  ## Run the focused canonical score/ranking contract gate
 	uv run python scripts/verify_health_completion.py --run-tests
+
+health-completion: health-contract  ## Verify the complete repository-health source surface
 
 health-check:  ## Run the code-health analyzer against this repo and fail on regressions
 	uv run pytest tests/unit/health/ tests/unit/server/test_mcp.py -v

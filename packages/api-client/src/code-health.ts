@@ -25,6 +25,7 @@ import type {
   HealthCounts,
   CanonicalHealthQuery,
   CanonicalHealthReport,
+  CanonicalHealthScoreProjection,
 } from "@repowise-dev/types/health";
 import type { Paginated } from "@repowise-dev/types";
 import { apiGet, apiPatch } from "./client";
@@ -76,6 +77,7 @@ export type {
   RefactoringTargetsResponse,
   CanonicalHealthQuery,
   CanonicalHealthReport,
+  CanonicalHealthScoreProjection,
 } from "@repowise-dev/types/health";
 
 /** Read the persisted canonical envelope; this endpoint never rescans or rescales a repo. */

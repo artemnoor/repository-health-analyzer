@@ -19,6 +19,7 @@ from repowise.core.analysis.health.ranking import (
     worst_first_key,
     worst_metric,
 )
+from repowise.core.analysis.health.ranking_projection import band_for_score
 from repowise.core.analysis.health.scoring import SCORE_FLOOR
 
 
@@ -170,3 +171,33 @@ def test_the_deduction_map_has_no_default() -> None:
     """Omitting it would silently tie the whole floor band on path."""
     with pytest.raises(TypeError):
         sort_metrics_worst_first([_dict("a.py", 1.0)])  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize(
+    ("score", "expected"),
+    [
+        (None, "unknown"),
+        (float("nan"), "unknown"),
+        (float("inf"), "unknown"),
+        (float("-inf"), "unknown"),
+        (0, "critical"),
+        (59.99, "critical"),
+        (60, "weak"),
+        (69.99, "weak"),
+        (70, "fair"),
+        (79.99, "fair"),
+        (80, "good"),
+        (89.99, "good"),
+        (90, "excellent"),
+        (100, "excellent"),
+    ],
+)
+def test_repository_ranking_band_boundaries_are_deterministic(score, expected) -> None:
+    assert band_for_score(score) == expected
+
+
+@pytest.mark.parametrize("score", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_scores_are_not_publicly_gradable(score) -> None:
+    from repowise.core.analysis.health.ranking_projection import grade_for_score
+
+    assert grade_for_score(score) == "—"

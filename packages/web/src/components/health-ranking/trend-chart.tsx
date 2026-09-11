@@ -26,10 +26,11 @@ export function RankingTrendChart({
               <TrendChart
                 history={series.points.filter((point) => point.overall_score != null).map((point) => ({
                   taken_at: point.analyzed_at,
-                  average_health: (point.overall_score as number) / 10,
+                  average_health: point.overall_score as number,
                   hotspot_health: null,
                   worst_performer_score: null,
                 }))}
+                scoreScale={100}
               />
             </section>
           );

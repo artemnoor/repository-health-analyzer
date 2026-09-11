@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -14,6 +15,13 @@ log = structlog.get_logger("health.ranking")
 DEFAULT_MAX_AGE = timedelta(days=30)
 DEFAULT_MIN_EVIDENCE_COVERAGE = 0.5
 ALLOWED_RANKING_MODES = frozenset({"fast", "full"})
+RANKING_BAND_THRESHOLDS: dict[str, float] = {
+    "excellent": 90.0,
+    "good": 80.0,
+    "fair": 70.0,
+    "weak": 60.0,
+}
+RANKING_BANDS = frozenset((*RANKING_BAND_THRESHOLDS, "critical", "unknown"))
 
 
 @dataclass(frozen=True)
@@ -68,7 +76,7 @@ class RankingFilter:
 
 
 def grade_for_score(score: float | None) -> str:
-    if score is None:
+    if score is None or not math.isfinite(score):
         return "—"
     if score >= 90:
         return "A"
@@ -82,15 +90,15 @@ def grade_for_score(score: float | None) -> str:
 
 
 def band_for_score(score: float | None) -> str:
-    if score is None:
+    if score is None or not math.isfinite(score):
         return "unknown"
-    if score >= 90:
+    if score >= RANKING_BAND_THRESHOLDS["excellent"]:
         return "excellent"
-    if score >= 80:
+    if score >= RANKING_BAND_THRESHOLDS["good"]:
         return "good"
-    if score >= 70:
+    if score >= RANKING_BAND_THRESHOLDS["fair"]:
         return "fair"
-    if score >= 60:
+    if score >= RANKING_BAND_THRESHOLDS["weak"]:
         return "weak"
     return "critical"
 
@@ -118,7 +126,7 @@ def evaluate_eligibility(
     policy = policy or RankingPolicy()
     if candidate.visibility != "public":
         return EligibilityDecision(False, "repository is not public")
-    if candidate.overall_score is None:
+    if candidate.overall_score is None or not math.isfinite(candidate.overall_score):
         return EligibilityDecision(False, "overall score is unavailable")
     if candidate.mode not in policy.allowed_modes:
         return EligibilityDecision(False, f"snapshot mode {candidate.mode!r} is not rankable")
@@ -139,7 +147,7 @@ def normalize_filter(
     stale: bool | None = None,
     eligible: bool | None = True,
 ) -> RankingFilter:
-    valid_bands = {"excellent", "good", "fair", "weak", "critical", "unknown"}
+    valid_bands = RANKING_BANDS
     normalized_band = band.strip().lower() if band else None
     if normalized_band and normalized_band not in valid_bands:
         raise ValueError(f"unknown score band: {band}")
@@ -179,8 +187,13 @@ def matches_filter(
 def ranking_sort_key(candidate: RankingCandidate) -> tuple[Any, ...]:
     """Score, evidence, freshness, name, ID — all tie-breakers are stable."""
     freshness = _aware(candidate.analyzed_at).timestamp() if candidate.analyzed_at else float("-inf")
+    score = (
+        candidate.overall_score
+        if candidate.overall_score is not None and math.isfinite(candidate.overall_score)
+        else float("-inf")
+    )
     return (
-        -(candidate.overall_score if candidate.overall_score is not None else float("-inf")),
+        -score,
         -candidate.evidence_coverage,
         -freshness,
         candidate.name.casefold(),
@@ -215,6 +228,8 @@ __all__ = [
     "ALLOWED_RANKING_MODES",
     "DEFAULT_MAX_AGE",
     "DEFAULT_MIN_EVIDENCE_COVERAGE",
+    "RANKING_BANDS",
+    "RANKING_BAND_THRESHOLDS",
     "EligibilityDecision",
     "RankingCandidate",
     "RankingFilter",

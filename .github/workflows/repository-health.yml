@@ -30,13 +30,19 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --all-packages --python 3.12
       - name: Verify copied source trees
-        run: uv run python scripts/vendor_sources.py --verify
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          timeout --signal=TERM --kill-after=60s 10m uv run python scripts/vendor_sources.py --verify 2>&1 | tee artifacts/vendor-sources.log
       - name: Publish source ledger
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: repository-health-source-ledger
-          path: vendor/SOURCES.lock
-          if-no-files-found: error
+          path: |
+            vendor/SOURCES.lock
+            artifacts/vendor-sources.log
+          if-no-files-found: ignore
 
   python:
     name: Python health contracts and integration
@@ -74,8 +80,16 @@ jobs:
           tests/integration/test_health_completion_matrix.py
           tests/integration/test_health_batch_scale.py
           tests/unit/server/test_public_health_compare.py
+      - name: Verify focused health completion contracts
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          uv run python scripts/verify_health_completion.py --run-tests 2>&1 | tee artifacts/health-completion.log
       - name: Verify migrations and replay gate
-        run: uv run python scripts/verify_health_stack.py --full
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          timeout --signal=TERM --kill-after=120s 30m uv run python scripts/verify_health_stack.py --full 2>&1 | tee artifacts/health-stack.log
       - name: Verify completion surface
         run: uv run python scripts/verify_health_completion.py
       - name: Publish redacted Python artifacts
@@ -86,6 +100,8 @@ jobs:
           path: |
             vendor/SOURCES.lock
             .repowise/health-latest.json
+            artifacts/health-completion.log
+            artifacts/health-stack.log
           if-no-files-found: ignore
 
   go:
@@ -253,10 +269,15 @@ jobs:
         run: uv sync --all-packages --python 3.12
       - name: Build required local binaries
         run: make build-native
-      - name: Run the full composition gate
-        run: uv run python scripts/verify_health_stack.py --full
       - name: Verify completion contracts and focused tests
-        run: uv run python scripts/verify_health_completion.py --run-tests
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          uv run python scripts/verify_health_completion.py --run-tests 2>&1 | tee artifacts/health-completion.log
+      - name: Run the full composition gate
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=120s 30m uv run python scripts/verify_health_stack.py --full 2>&1 | tee artifacts/health-stack.log
       - name: Produce and apply the sample health policy
         run: |
           mkdir -p artifacts
@@ -269,6 +290,8 @@ jobs:
           name: repository-health-composition-${{ github.run_id }}
           path: |
             artifacts/health-sample.json
+            artifacts/health-completion.log
+            artifacts/health-stack.log
             vendor/SOURCES.lock
             .repowise/health-latest.json
           if-no-files-found: ignore

@@ -7,7 +7,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from repowise.core.persistence.models import HealthAggregate, RepositoryHealthSnapshot
+from repowise.core.persistence.models import (
+    HealthAggregate,
+    HealthRecommendation,
+    HealthScoreProjection,
+    RepositoryHealthSnapshot,
+)
 
 
 @pytest.mark.asyncio
@@ -48,6 +53,46 @@ async def test_get_health_can_return_the_same_persisted_canonical_shape(
             provenance_json="[]",
         )
     )
+    session.add(
+        HealthScoreProjection(
+            snapshot_id=snapshot.id,
+            score_config_digest="score-mcp",
+            overall_score=82.5,
+            dimensions_json=json.dumps({"code": 82.5, "security": None}),
+            breakdown_json=json.dumps([{"dimension": "code", "score": 82.5}]),
+            configured_weight=1.0,
+            available_weight=0.75,
+            confidence=0.88,
+            coverage=0.75,
+            evidence_coverage=0.8,
+            status="warn",
+            limitations_json=json.dumps([{"reason": "security unavailable", "kind": "partial"}]),
+            score_recomputed=False,
+        )
+    )
+    session.add(
+        HealthRecommendation(
+            snapshot_id=snapshot.id,
+            recommendation_id="rec-mcp",
+            finding_id="finding-mcp",
+            subject="Security coverage",
+            dimension="security",
+            finding_status="open",
+            severity="high",
+            reason="Security data is incomplete.",
+            remediation="Run the security analyzer.",
+            location_json=json.dumps({"path": "src/security.py", "line_start": 12}),
+            priority=0.8,
+            lifecycle="open",
+            benefit=0.8,
+            confidence=0.7,
+            criticality=0.4,
+            effort=0.2,
+            risk=0.1,
+            blast_radius=0.1,
+            evidence_json="[]",
+        )
+    )
     await session.commit()
 
     from repowise.server.mcp_server import get_health
@@ -61,4 +106,16 @@ async def test_get_health_can_return_the_same_persisted_canonical_shape(
     assert output["mode"] == "canonical"
     assert output["canonical"]["snapshot"]["id"] == snapshot.id
     assert output["canonical"]["snapshot"]["score"] == 9.1
+    assert output["canonical"]["score_projection"]["overall_score"] == 82.5
+    assert output["canonical"]["score_projection"]["score_config_digest"] == "score-mcp"
+    assert output["canonical"]["score_projection"]["dimensions"] == {"code": 82.5, "security": None}
+    assert output["canonical"]["score_projection"]["limitations"] == [
+        {
+            "reason": "security unavailable",
+            "kind": "partial",
+            "affected_scope": None,
+            "evidence_refs": [],
+        }
+    ]
+    assert output["canonical"]["recommendations"][0]["remediation"] == "Run the security analyzer."
     assert output["canonical"]["meta"]["score_recomputed"] is False

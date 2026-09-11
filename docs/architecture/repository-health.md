@@ -106,6 +106,41 @@ unavailable/stale states explicitly and never exposes `local_path` or raw
 evidence. Rebuild the projection after importing old snapshots with
 `rebuild_health_ranking` or the corresponding server maintenance command.
 
+### Cross-surface ownership and compatibility
+
+The canonical projection is the single source of truth for the repository
+headline. The data flow is:
+
+```text
+HealthScoreProjection
+        ├── canonical REST ──┐
+        ├── MCP / CLI ───────┼── same 0..100 repository contract
+        ├── detail UI ───────┘
+        └── ranking projection ── derived band + facets ── ranking UI
+```
+
+The legacy file/module `0..10` KPIs remain available for compatibility, but no
+consumer may substitute them for `score_projection.overall_score`. `band` and
+`facets` are additive API fields and are derived from the canonical projection;
+there is no persisted band column and no schema migration is introduced by
+this alignment. Older clients can ignore the new fields, while current clients
+fall back to local band derivation when reading a pre-band response.
+
+The default public ranking policy is evaluated at read time as well as when a
+row is published. This prevents an expired freshness window or reduced
+evidence coverage from silently remaining healthy in a stale materialized row.
+
+### Recovery after an incomplete gate
+
+Keep migrations `0064..0066` during application rollback. Restore only the
+application/UI consumer commit, then run the focused completion check and
+`make health-replay` to rebuild ranking rows from committed snapshots. Verify
+public visibility, eligibility, freshness, `0..100` rendering and the browser
+ranking flow before reopening release. Raw facts must not be recollected just
+to recover a UI projection. Native/vendor verification is a separate gate;
+its timeout, platform skip or redacted diagnostic must be attached to the
+release artifact.
+
 ## Failure isolation and limits
 
 `packages/core/src/repowise/core/analysis/health/integrations/process.py`
@@ -137,3 +172,8 @@ deduplication, rescore invariants and canonical projection stability. See
 source-level completion gate and focused ranking matrix. See
 `docs/reference/HEALTH_ANALYZER.md` for report usage and
 `docs/reference/NATIVE_TOOLS.md` for source/toolchain details.
+
+## See Also
+
+- [Health Analyzer reference](../reference/HEALTH_ANALYZER.md) — score, status and API semantics
+- [Native tool map](../reference/NATIVE_TOOLS.md) — pinned sources and toolchain policy

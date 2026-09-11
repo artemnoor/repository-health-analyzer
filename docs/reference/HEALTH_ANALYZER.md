@@ -58,6 +58,34 @@ the SHA-256 digest of this policy and an explainable dimension breakdown.
 Criticality is stored and displayed separately as importance, not added to
 health.
 
+### Canonical score contract
+
+The repository health score has one canonical read model and one scale:
+
+| Surface | Contract | Source of truth |
+| --- | --- | --- |
+| Repository detail, REST and MCP | `score_projection.overall_score`, `0..100` | Persisted `HealthScoreProjection` |
+| Public ranking, compare and trend | `overall_score`, `0..100`, plus derived `band` | Materialized public ranking projection |
+| CLI `--explain` | `canonical_repository_health`, `0..100` | The same persisted projection |
+| File/module KPIs and legacy refactoring views | `0..10` | Compatibility surface; never used as the repository score |
+
+The ranking bands are derived, not stored as a second database column:
+
+| Band | Boundary |
+| --- | --- |
+| Excellent | `90..100` |
+| Good | `80..<90` |
+| Fair | `70..<80` |
+| Weak | `60..<70` |
+| Critical | `0..<60` |
+| Unknown | score is unavailable or non-finite |
+
+`0` is a measured score and remains `0/100`. `null` means that no usable
+canonical projection exists; `skipped`, `inconclusive`, `warn` and `error`
+remain visible data-quality states and are never converted into a healthy zero
+or a passing row. A detail view also exposes the projection breakdown,
+limitations, remediation, safe evidence locations and priority context.
+
 The public read model is rebuilt from committed snapshots and is intentionally
 smaller than the canonical per-repository report:
 
@@ -127,3 +155,52 @@ MCP read the same persisted canonical snapshot rather than rerunning detectors.
   materialized rows from committed snapshots. A stale or low-evidence row is
   intentionally visible as not ranked; do not turn that state into a score.
 - UI dependencies absent: run `npm ci`, then `npm run type-check --workspace packages/web`.
+
+## Verification and recovery
+
+Run the focused contract gate before the native/toolchain gate:
+
+```bash
+make health-contract
+npm run test --workspace packages/web
+npm run type-check --workspace packages/web
+npm run test:e2e --workspace packages/web
+```
+
+`make health-replay` and `make test-composition` are the full redacted
+composition checks. `make vendor-verify` and the native build/test targets are
+separate provenance gates; a timeout or platform skip must remain visible in
+the published artifact and is not a pass.
+
+On Windows without GNU Make, run the equivalent focused command directly:
+`uv run python scripts/verify_health_completion.py --run-tests`. The native
+vendor gate is supported in the documented CI/Linux environment and remains a
+separate platform-conditional check.
+
+This alignment introduces no schema migration; migration head `0066` remains
+the compatibility boundary. If the application/UI needs rollback, keep
+migrations `0064..0066`, restore the consumer commit, run
+`make health-replay` and `make health-completion`, and rebuild the materialized
+ranking from committed snapshots. Do not recollect raw facts just to repair a
+rendering issue. If mixed server/client versions exist, retain the additive
+`band`/`facets` response fields and use the client's pre-band fallback until
+the rollout is complete.
+
+### Release checkpoint
+
+Record these fields for every release candidate; keep logs redacted:
+
+| Field | Required value or evidence |
+| --- | --- |
+| Branch and commit | Exact release ref and commit ID |
+| Migration head | `0066`; no downgrade or new migration for this alignment |
+| Source ledger | `vendor/SOURCES.lock` plus `vendor-sources.log` |
+| Focused contract | `make health-contract` or its Windows `uv` equivalent and `health-completion.log` |
+| Web contract | web tests, type-check and ranking E2E result |
+| Native/toolchain | pass, or explicit timeout/platform blocker in `health-stack.log` |
+| Recovery evidence | replay/completion result and artifact locations |
+
+## See Also
+
+- [Repository health architecture](../architecture/repository-health.md) — ownership, read models and recovery flow
+- [Native tool map](NATIVE_TOOLS.md) — pinned toolchain and source verification

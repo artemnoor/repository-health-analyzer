@@ -4,7 +4,9 @@ import type { HealthResponse } from "./types";
 export type {
   CanonicalHealthQuery,
   CanonicalHealthReport,
+  CanonicalHealthScoreProjection,
 } from "@repowise-dev/types/health";
+export type { HealthRankingBand } from "@repowise-dev/types/health-ranking";
 export { getCanonicalHealth } from "./code-health";
 
 export async function getHealth(): Promise<HealthResponse> {

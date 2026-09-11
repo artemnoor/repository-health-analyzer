@@ -6,6 +6,7 @@ Performance-risk headline, band distribution, README badge, and the
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from repowise.cli.helpers import console
@@ -74,6 +75,50 @@ def _render_composition_line(result: Any) -> None:
     console.print(
         f"[dim]Composition: {status} · schema v{getattr(result, 'schema_version', '?')} "
         f"· evidence {evidence} · limitations {limitations}[/dim]"
+    )
+
+
+def _canonical_projection(canonical_report: Any) -> dict[str, Any] | None:
+    if not isinstance(canonical_report, dict):
+        return None
+    projection = canonical_report.get("score_projection")
+    return projection if isinstance(projection, dict) else None
+
+
+def canonical_score_label(canonical_report: Any) -> str:
+    """Return the persisted repository score with its canonical 0–100 scale."""
+    projection = _canonical_projection(canonical_report)
+    value = projection.get("overall_score") if projection else None
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        return f"{value:.1f}/100"
+    return "unavailable"
+
+
+def canonical_score_markdown(canonical_report: Any) -> str:
+    """Return the additive Markdown line for an explain/read-model report."""
+    return f"- **canonical_repository_health**: {canonical_score_label(canonical_report)}"
+
+
+def _render_canonical_score(canonical_report: Any) -> None:
+    """Print the repository projection without confusing it with legacy /10 KPIs."""
+    projection = _canonical_projection(canonical_report)
+    label = canonical_score_label(canonical_report)
+    if projection is None:
+        console.print(
+            "[yellow]Canonical repository health:[/yellow] unavailable "
+            "[dim](no persisted 0–100 projection)[/dim]"
+        )
+        return
+    status = projection.get("status", "unknown")
+    coverage = projection.get("coverage")
+    coverage_label = (
+        f"{coverage:.0%} coverage"
+        if isinstance(coverage, (int, float)) and not isinstance(coverage, bool) and math.isfinite(coverage)
+        else "coverage unavailable"
+    )
+    console.print(
+        f"[bold]Canonical repository health:[/bold] [bold]{label}[/bold] "
+        f"[dim](status={status} · {coverage_label})[/dim]"
     )
 
 

@@ -55,14 +55,26 @@ async def get_public_health_ranking(
             limit=limit,
             include_ineligible=include_ineligible,
         )
+        facets = await crud.list_health_ranking_facets(
+            session,
+            include_ineligible=include_ineligible,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    log.info("public_ranking_read", page=page, limit=limit, rows=len(rows), total=total)
+    log.info(
+        "public_ranking_read",
+        page=page,
+        limit=limit,
+        rows=len(rows),
+        total=total,
+        facet_count=sum(len(values) for values in facets.values()),
+    )
     return HealthRankingResponse(
         items=[HealthRankingEntryResponse.model_validate(row) for row in rows],
         page=page,
         limit=limit,
         total=total,
+        facets=facets,
         generated_at=datetime.now(UTC),
     )
 

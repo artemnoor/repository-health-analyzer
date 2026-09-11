@@ -113,6 +113,7 @@ def _load_recommendations(
 def _load_canonical_health(
     repo_path: object,
     *,
+    scope: str | None = None,
     dimension: str | None = None,
     status: str | None = None,
     severity: str | None = None,
@@ -138,6 +139,7 @@ def _load_canonical_health(
             return await build_canonical_health_report(
                 session,
                 repo.id,
+                scope=scope,
                 dimension=dimension,
                 status=status,
                 severity=severity,

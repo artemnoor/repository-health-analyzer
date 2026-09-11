@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Iterable
 from dataclasses import replace
 from datetime import datetime
@@ -17,6 +18,7 @@ from ....analysis.health.ranking_projection import (
     RankingCandidate,
     RankingFilter,
     RankingPolicy,
+    band_for_score,
     evaluate_eligibility,
     grade_for_score,
     rank_candidates,
@@ -57,6 +59,13 @@ def _languages(repo: Repository) -> tuple[str, ...]:
     return tuple(sorted({str(value).lower() for value in values if str(value).strip()}))
 
 
+def _finite_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
 def _candidate(
     repo: Repository,
     snapshot: RepositoryHealthSnapshot,
@@ -66,7 +75,7 @@ def _candidate(
 ) -> RankingCandidate:
     dimensions = _json_object(projection.dimensions_json)
     normalized_dimensions = {
-        str(key): float(value) if isinstance(value, (int, float)) else None
+        str(key): _finite_float(value)
         for key, value in dimensions.items()
     }
     language_values = tuple(sorted({str(value).lower() for value in (languages or _languages(repo))}))
@@ -96,14 +105,20 @@ def _candidate(
 def _public_row(candidate: RankingCandidate, decision: EligibilityDecision) -> dict[str, Any]:
     """Serialize only fields allowed by the public ranking contract."""
     stale = decision.stale
+    overall_score = (
+        candidate.overall_score
+        if candidate.overall_score is not None and math.isfinite(candidate.overall_score)
+        else None
+    )
     return {
         "repository_id": candidate.repository_id,
         "name": candidate.name,
         "url": candidate.url,
         "snapshot_id": candidate.snapshot_id,
         "score_config_digest": candidate.score_config_digest,
-        "overall_score": candidate.overall_score,
-        "grade": grade_for_score(candidate.overall_score),
+        "overall_score": overall_score,
+        "band": band_for_score(overall_score),
+        "grade": grade_for_score(overall_score),
         "status": candidate.status,
         "dimensions": dict(candidate.dimensions),
         "languages": list(candidate.languages),
@@ -114,7 +129,7 @@ def _public_row(candidate: RankingCandidate, decision: EligibilityDecision) -> d
         "stale": stale,
         "eligible": decision.eligible,
         "eligibility_reason": decision.reason,
-        "score_delta": candidate.score_delta,
+        "score_delta": _finite_float(candidate.score_delta),
     }
 
 
@@ -244,6 +259,11 @@ async def list_health_ranking(
     candidates: list[RankingCandidate] = []
     decisions: dict[str, EligibilityDecision] = {}
     for repo, entry in result.all():
+        dimensions = _json_object(entry.dimensions_json)
+        normalized_dimensions = {
+            str(key): _finite_float(value)
+            for key, value in dimensions.items()
+        }
         candidate = RankingCandidate(
             repository_id=repo.id,
             name=repo.name,
@@ -253,7 +273,7 @@ async def list_health_ranking(
             score_config_digest=entry.score_config_digest,
             overall_score=entry.overall_score,
             status=entry.status,
-            dimensions=_json_object(entry.dimensions_json),
+            dimensions=normalized_dimensions,
             languages=tuple(_json_list(entry.languages_json)),
             confidence=entry.confidence,
             coverage=entry.coverage,
@@ -293,6 +313,107 @@ async def list_health_ranking(
         policy=policy,
     )
     return [_public_row(row, decisions[row.repository_id]) for row in rows], total
+
+
+def _decode_facet_json(
+    value: str | None,
+    *,
+    repository_id: str,
+    field_name: str,
+    expected_type: type[dict] | type[list],
+) -> dict[str, Any] | list[Any]:
+    if value is None:
+        return {} if expected_type is dict else []
+    try:
+        decoded = json.loads(value)
+    except (TypeError, ValueError):
+        log.warning(
+            "health_ranking_facet_json_invalid",
+            repository_id=repository_id,
+            field=field_name,
+        )
+        return {} if expected_type is dict else []
+    if not isinstance(decoded, expected_type):
+        log.warning(
+            "health_ranking_facet_json_wrong_type",
+            repository_id=repository_id,
+            field=field_name,
+        )
+        return {} if expected_type is dict else []
+    return decoded
+
+
+def _stable_facet_name(value: object) -> str | None:
+    normalized = str(value).strip().lower()
+    return normalized or None
+
+
+async def list_health_ranking_facets(
+    session: AsyncSession,
+    *,
+    include_ineligible: bool = False,
+) -> dict[str, list[str]]:
+    """Return deterministic, public-safe filter values independent of page size."""
+    query = (
+        select(
+            Repository.id,
+            RepositoryHealthRankingEntry.dimensions_json,
+            RepositoryHealthRankingEntry.languages_json,
+            RepositoryHealthRankingEntry.status,
+        )
+        .join(
+            RepositoryHealthRankingEntry,
+            RepositoryHealthRankingEntry.repository_id == Repository.id,
+        )
+        .where(Repository.visibility == "public")
+    )
+    if not include_ineligible:
+        query = query.where(RepositoryHealthRankingEntry.eligible.is_(True))
+
+    result = await session.execute(query)
+    dimensions: set[str] = set()
+    languages: set[str] = set()
+    statuses: set[str] = set()
+    for repository_id, dimensions_json, languages_json, status in result.all():
+        raw_dimensions = _decode_facet_json(
+            dimensions_json,
+            repository_id=repository_id,
+            field_name="dimensions_json",
+            expected_type=dict,
+        )
+        for value in raw_dimensions:
+            normalized = _stable_facet_name(value)
+            if normalized:
+                dimensions.add(normalized)
+
+        raw_languages = _decode_facet_json(
+            languages_json,
+            repository_id=repository_id,
+            field_name="languages_json",
+            expected_type=list,
+        )
+        for value in raw_languages:
+            normalized = _stable_facet_name(value)
+            if normalized:
+                languages.add(normalized)
+
+        normalized_status = _stable_facet_name(status)
+        if normalized_status:
+            statuses.add(normalized_status)
+
+    facets = {
+        "dimensions": sorted(dimensions),
+        "languages": sorted(languages),
+        "statuses": sorted(statuses),
+    }
+    log.info(
+        "health_ranking_facets_read",
+        include_ineligible=include_ineligible,
+        dimensions=len(facets["dimensions"]),
+        languages=len(facets["languages"]),
+        statuses=len(facets["statuses"]),
+    )
+    return facets
 
 
 async def list_health_ranking_trend(
@@ -355,8 +476,9 @@ async def list_health_ranking_trend(
             {
                 "snapshot_id": snapshot.id,
                 "score_config_digest": projection.score_config_digest,
-                "overall_score": projection.overall_score,
-                "grade": grade_for_score(projection.overall_score),
+                "overall_score": _finite_float(projection.overall_score),
+                "band": band_for_score(_finite_float(projection.overall_score)),
+                "grade": grade_for_score(_finite_float(projection.overall_score)),
                 "status": projection.status,
                 "analyzed_at": snapshot.analyzed_at.isoformat() if snapshot.analyzed_at else None,
             }
@@ -370,6 +492,7 @@ async def list_health_ranking_trend(
 
 __all__ = [
     "list_health_ranking",
+    "list_health_ranking_facets",
     "list_health_ranking_trend",
     "publish_health_ranking",
     "rebuild_health_ranking",

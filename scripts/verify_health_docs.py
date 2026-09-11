@@ -24,7 +24,11 @@ def main() -> int:
         "packages/core/src/repowise/core/analysis/health/integrations/contracts.py",
         "packages/server/src/repowise/server/routers/code_health/canonical.py",
         "packages/server/src/repowise/server/routers/public_health.py",
+        "packages/web/src/components/code-health/canonical-summary.tsx",
         "packages/web/src/app/ranking/page.tsx",
+        "packages/ui/src/health/trend-chart.tsx",
+        "packages/cli/src/repowise/cli/commands/health_cmd/summary.py",
+        "packages/types/src/health-ranking.ts",
         "scripts/verify_health_completion.py",
         "docs/architecture/repository-health.md",
         "docs/reference/HEALTH_ANALYZER.md",
@@ -37,6 +41,9 @@ def main() -> int:
 
     ledger = json.loads((ROOT / "vendor/SOURCES.lock").read_text(encoding="utf-8"))
     native_doc = (ROOT / "docs/reference/NATIVE_TOOLS.md").read_text(encoding="utf-8")
+    health_doc = (ROOT / "docs/reference/HEALTH_ANALYZER.md").read_text(encoding="utf-8")
+    architecture_doc = (ROOT / "docs/architecture/repository-health.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     native_sources = {
         "scorecard",
         "repohealth",
@@ -72,15 +79,41 @@ def main() -> int:
         "health-replay",
         "health-clean",
         "health-completion",
+        "health-contract",
     }
     missing_commands = sorted(command for command in commands if f"{command}:" not in makefile)
     if missing_commands:
         raise RuntimeError(f"Makefile commands missing: {', '.join(missing_commands)}")
+    markers = (
+        (health_doc, "score_projection.overall_score", "canonical projection field"),
+        (health_doc, "0..100", "canonical score scale"),
+        (health_doc, "Excellent | `90..100`", "ranking band boundary"),
+        (health_doc, "`0` is a measured score", "zero/null semantics"),
+        (health_doc, "include_ineligible=true", "public diagnostic filter"),
+        (health_doc, "migration head `0066`", "migration compatibility note"),
+        (health_doc, "### Release checkpoint", "release checkpoint"),
+        (health_doc, "Windows without GNU Make", "Windows command fallback"),
+        (architecture_doc, "derived band + facets", "derived ranking fields"),
+        (architecture_doc, "no schema migration is introduced", "no-migration contract"),
+        (architecture_doc, "make health-replay", "recovery command"),
+        (readme, "docs/reference/HEALTH_ANALYZER.md", "README health reference"),
+        (readme, "make health-contract", "README focused verification"),
+        (readme, "legacy `0–10` scale", "README scale boundary"),
+        (
+            (ROOT / ".github/workflows/repository-health.yml").read_text(encoding="utf-8"),
+            "artifacts/health-stack.log",
+            "full gate artifact",
+        ),
+    )
+    missing_markers = [label for text, marker, label in markers if marker not in text]
+    if missing_markers:
+        raise RuntimeError(f"documented contract markers missing: {', '.join(missing_markers)}")
     LOG.info(
-        "documentation checkpoint passed paths=%d jobs=%d commands=%d",
+        "documentation checkpoint passed paths=%d jobs=%d commands=%d markers=%d",
         len(required_paths),
         len(jobs),
         len(commands),
+        len(markers),
     )
     return 0
 

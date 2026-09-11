@@ -36,6 +36,7 @@
     "./health": "./src/health/index.ts",
     "./health/ai-prompt-builder": "./src/health/ai-prompt-builder.ts",
     "./health/tokens": "./src/health/tokens.ts",
+    "./health/ranking-tokens": "./src/health/ranking-tokens.ts",
     "./health/*": "./src/health/*.tsx",
     "./coupling": "./src/coupling/index.ts",
     "./coupling/*": "./src/coupling/*.tsx",
