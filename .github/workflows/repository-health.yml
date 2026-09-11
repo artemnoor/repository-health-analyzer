@@ -3,7 +3,7 @@ name: repository-health
 on:
   workflow_dispatch:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'feature/**']
   pull_request:
     branches: [main]
 
@@ -13,9 +13,6 @@ concurrency:
 
 permissions:
   contents: read
-
-env:
-  SOURCE_LOCK_DIGEST: ${{ hashFiles('vendor/SOURCES.lock') }}
 
 jobs:
   source-ledger:
@@ -58,7 +55,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ env.SOURCE_LOCK_DIGEST }}
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}-${{ hashFiles('vendor/SOURCES.lock') }}
       - name: Install Python 3.12 dependencies
         run: uv sync --all-packages --python 3.12
       - name: Run Python lint
@@ -136,7 +133,7 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: go-${{ runner.os }}-${{ matrix.tool }}-${{ env.SOURCE_LOCK_DIGEST }}-${{ hashFiles(format('{0}/go.sum', matrix.path)) }}
+          key: go-${{ runner.os }}-${{ matrix.tool }}-${{ hashFiles('vendor/SOURCES.lock') }}-${{ hashFiles(format('{0}/go.sum', matrix.path)) }}
       - name: Test copied source
         working-directory: ${{ matrix.path }}
         env:
@@ -167,7 +164,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             vendor/qlty/target
-          key: cargo-${{ runner.os }}-${{ env.SOURCE_LOCK_DIGEST }}-${{ hashFiles('vendor/qlty/Cargo.lock') }}
+          key: cargo-${{ runner.os }}-${{ hashFiles('vendor/SOURCES.lock') }}-${{ hashFiles('vendor/qlty/Cargo.lock') }}
       - name: Run copied Rust workspace tests
         working-directory: vendor/qlty
         run: cargo test --workspace
@@ -204,7 +201,7 @@ jobs:
             vendor/sokrates/target
             vendor/sonarqube/.gradle
             vendor/sonarqube/build
-          key: java-${{ runner.os }}-${{ env.SOURCE_LOCK_DIGEST }}-${{ hashFiles('vendor/sokrates/**/pom.xml', 'vendor/sonarqube/**/gradle*.properties', 'vendor/sonarqube/**/build.gradle') }}
+          key: java-${{ runner.os }}-${{ hashFiles('vendor/SOURCES.lock') }}-${{ hashFiles('vendor/sokrates/**/pom.xml', 'vendor/sonarqube/**/gradle*.properties', 'vendor/sonarqube/**/build.gradle') }}
       - name: Test and package copied Sokrates
         working-directory: vendor/sokrates
         run: mvn -pl cli -am test package
