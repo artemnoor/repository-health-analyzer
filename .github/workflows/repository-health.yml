@@ -26,6 +26,8 @@ jobs:
           enable-cache: false
       - name: Install Python dependencies
         run: uv sync --all-packages --python 3.12
+      - name: Materialize pinned source metadata
+        run: uv run python scripts/materialize_source_roots.py
       - name: Verify copied source trees
         run: |
           mkdir -p artifacts
@@ -39,7 +41,9 @@ jobs:
           path: |
             vendor/SOURCES.lock
             artifacts/vendor-sources.log
+            .sources/**
           if-no-files-found: ignore
+          include-hidden-files: true
 
   python:
     name: Python health contracts and integration
@@ -47,6 +51,10 @@ jobs:
     needs: source-ledger
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: repository-health-source-ledger
+          path: .
       - uses: astral-sh/setup-uv@v7
         with:
           version: latest
@@ -258,6 +266,10 @@ jobs:
     needs: [source-ledger, python, go, rust, java, web]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: repository-health-source-ledger
+          path: .
       - uses: astral-sh/setup-uv@v7
         with:
           version: latest
