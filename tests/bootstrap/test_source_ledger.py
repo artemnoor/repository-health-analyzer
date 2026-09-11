@@ -4,7 +4,6 @@ import json
 import re
 from pathlib import Path
 
-
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 

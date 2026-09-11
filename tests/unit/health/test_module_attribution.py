@@ -226,8 +226,8 @@ def test_every_analyzer_call_site_supplies_a_repo_root():
     import ast
     from pathlib import Path as _Path
 
-    import repowise.core.analysis.health.integrations.repowise_adapter as composed_health
     import repowise.cli.commands.update_cmd.persistence as rescore
+    import repowise.core.analysis.health.integrations.repowise_adapter as composed_health
     import repowise.core.pipeline.incremental as incremental
     import repowise.core.pipeline.phases.analysis as full_index
 

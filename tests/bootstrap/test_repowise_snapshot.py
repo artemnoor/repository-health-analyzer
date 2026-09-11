@@ -3,7 +3,6 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-
 PINNED_REPOWISE_SHA = "1599224a3e4590c5d15a3d8e53727b9e74116ab9"
 
 

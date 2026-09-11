@@ -161,6 +161,7 @@ vendor/**/com[1-9]
 vendor/**/com[1-9].*
 vendor/**/lpt[1-9]
 vendor/**/lpt[1-9].*
-vendor/**/report
+# Keep upstream report renderers; only the explicit Windows junction path
+# above remains excluded.
 .health-cache/
 artifacts/

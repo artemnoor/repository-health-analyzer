@@ -10,7 +10,12 @@ from repowise.core.analysis.health.integrations.contracts import (
     MetricValue,
 )
 from repowise.core.analysis.health.integrations.registry import AnalyzerRegistry
-from repowise.core.analysis.health.models import HealthFileMetricData, HealthFindingData, HealthReport, Severity
+from repowise.core.analysis.health.models import (
+    HealthFileMetricData,
+    HealthFindingData,
+    HealthReport,
+    Severity,
+)
 
 
 def test_fake_analyzer_produces_one_evidence_backed_composition_envelope(tmp_path: Path) -> None:
