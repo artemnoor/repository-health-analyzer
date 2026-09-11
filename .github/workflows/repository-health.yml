@@ -175,6 +175,11 @@ jobs:
             ~/.cargo/git
             vendor/qlty/target
           key: cargo-${{ runner.os }}-${{ hashFiles('vendor/SOURCES.lock') }}-${{ hashFiles('vendor/qlty/Cargo.lock') }}
+      - name: Materialize Qlty test workspace config
+        working-directory: vendor/qlty
+        run: |
+          mkdir -p ../../.qlty
+          cp .qlty/qlty.toml ../../.qlty/qlty.toml
       - name: Run copied Rust workspace tests
         working-directory: vendor/qlty
         # Qlty's upstream trycmd integration suite invokes optional external
