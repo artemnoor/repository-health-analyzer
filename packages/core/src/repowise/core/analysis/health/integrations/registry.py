@@ -54,7 +54,6 @@ class AnalyzerRegistry:
         # the same Pydantic validation boundary before it becomes runnable.
         validated = AnalyzerDefinition.model_validate(definition.model_dump())
         self._entries[validated.id] = (validated, factory)
-        log.debug("registered", analyzer_id=validated.id, version=validated.version)
 
     def ids(self) -> tuple[str, ...]:
         return tuple(sorted(self._entries))
