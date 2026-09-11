@@ -33,6 +33,7 @@ results.json
 *.json
 # JSON files under testdata are checked-in upstream fixtures, not generated output.
 !**/testdata/*.json
+!**/testdata/*.log
 
 # Output of the go coverage tool, specifically when used with LiteIDE.
 *.coverprofile*
