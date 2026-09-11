@@ -9,7 +9,10 @@ their algorithms into `packages/core`.
 The authoritative source and build ledger is [`SOURCES.lock`](SOURCES.lock).
 Each executable source has a corresponding local Git metadata root under
 `.sources/` and a pinned commit. `reference-only` entries describe product
-references for which no source tree is copied.
+references for which no source tree is copied. The ledger's `verify_mode` is
+also authoritative: `git-tree` checks every copied blob, while `sentinels`
+checks the pinned commit plus the explicitly required files for a partial or
+platform-specific vendor snapshot.
 
 Rules:
 
