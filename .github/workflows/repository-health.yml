@@ -147,7 +147,8 @@ jobs:
       - name: Test copied source
         working-directory: ${{ matrix.path }}
         env:
-          TOKEN_TYPE: PAT
+          TOKEN_TYPE: GITHUB_TOKEN
+          GITHUB_AUTH_TOKEN: ${{ github.token }}
         run: go test ./...
       - name: Build copied binary
         working-directory: ${{ matrix.path }}
