@@ -90,6 +90,8 @@ jobs:
           mkdir -p artifacts
           set -o pipefail
           uv run python scripts/verify_health_completion.py --run-tests 2>&1 | tee artifacts/health-completion.log
+      - name: Build required native binaries
+        run: uv run python scripts/build_native_health.py
       - name: Verify migrations and replay gate
         run: |
           mkdir -p artifacts
