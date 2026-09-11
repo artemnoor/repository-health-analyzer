@@ -1,179 +1,74 @@
-# Repository Health Analyzer: архитектура
+# Repository Health Analyzer: architecture reference
 
-Repository Health Analyzer — это композиция поверх целиком скопированного
-RepoWise chassis. Основные алгоритмы не переписаны: в workspace лежит pinned
-RepoWise tree, а внешние движки лежат в `vendor/` и запускаются через тонкие
-адаптеры.
+[← Back to README](../../README.md) · [Repository Health docs](../repository-health/architecture.md)
 
-## Границы исходников
+Это compatibility entry point для старого пути документации. Актуальная
+архитектура описана в [Architecture](../repository-health/architecture.md), а
+здесь зафиксированы обязательные invariants, которые должны сохраняться при
+изменениях.
 
-| Слой | Реальный путь | Роль |
-| --- | --- | --- |
-| Product chassis | `packages/core`, `packages/server`, `packages/cli`, `packages/web` | Git index, health engine, persistence, REST/MCP/CLI/UI |
-| Native source trees | `vendor/scorecard`, `vendor/repohealth`, `vendor/criticality_score`, `vendor/qlty`, `vendor/sokrates`, `vendor/sonarqube` | Security checks, baseline, importance, SARIF/plugins, code metrics and duplication primitives |
-| Forge/data source trees | `vendor/repocrunch`, `vendor/collectoss`, `vendor/chaoss/*` | GitHub/Forge collection, raw events, identity, temporal and metric definitions |
-| Shared configuration | `config/analyzers/*.yaml` | Source commits, modes, limits, cache and failure policy |
-| Reproducibility | `vendor/SOURCES.lock`, `scripts/vendor_sources.py` | Pinned commit and copied-tree verification |
-| Imported dashboard assets | `packages/web/src/data/health/sigils` | Directly copied Sigils panel recipes, not a second report model |
+## Непереговорные invariants
 
-`vendor/SOURCES.lock` is authoritative. A source update is valid only after
-changing its explicit commit, copying the new tree, running the ledger check,
-running the native tests and reviewing the replay diff.
+1. Все product surfaces читают один canonical persisted projection.
+2. Итоговый score — `0..100`; legacy `0..10` file/module KPI нельзя подставлять
+   вместо `score_projection.overall_score`.
+3. Missing dimension не превращается в zero: она остаётся `null` и попадает в
+   limitations.
+4. Criticality — контекст приоритета, но не компонент health score.
+5. Public ranking — отдельный materialized read model и не содержит
+   `local_path` или raw evidence.
+6. Replay/rescore использует сохранённые raw facts и не вызывает повторный
+   сбор Forge/Git/native данных.
 
-## Common execution graph
-
-```text
-repository path / Git ref / as_of_ts / config digest
-                         |
-                         v
-                 AnalyzerContext
-                         |
-                         v
-              registry -> planned analyzers
-                 |          |          |
-                 v          v          v
-       RepoWise/Git   native adapters   Forge/CHAOSS adapters
-                 \          |          /
-                  \         v         /
-                   AnalyzerResult envelope
-                         |
-                         v
-              raw facts -> normalized facts
-                         |
-                         v
-       immutable snapshot -> aggregates/recommendations/evidence
-                         |
-              +----------+-----------+
-              v                      v
-       canonical REST/MCP/CLI       web health views
-```
-
-Every analyzer returns `AnalyzerResult` from
-`packages/core/src/repowise/core/analysis/health/integrations/contracts.py`.
-The result carries status, score, metrics, findings, evidence, limitations,
-duration, cache state and source versions. Native algorithms stay behind their
-original JSON/SARIF/CSV boundary.
-
-## Persistence order
-
-`save_health_envelope` writes the source runs first, then raw facts, normalized
-facts, metric values, finding evidence, aggregates and recommendations, and
-finally commits the immutable `RepositoryHealthSnapshot`. Replay is idempotent
-for the same repository, HEAD, `as_of_ts` and config digest. A rescore reads
-persisted raw facts and changes aggregates only; it never recollects Forge,
-Git or native data.
-
-Health and criticality are intentionally separate. Criticality is an importance
-and blast-radius context used to rank remediation. It is not subtracted from
-the health score and a missing criticality signal is not a health score of zero.
-
-The canonical repository score is a weighted mean of the available normalized
-dimensions (`code`, `history`, `tests`, `dependencies`, `security`, `delivery`,
-`community`, `docs`) on a 0–100 scale. Missing dimensions remain `null` and
-remove their configured weight from the denominator; they are not zeros. The
-score configuration has a digest, so replay, rescore, API, MCP, CLI and UI can
-identify the exact policy that produced a number.
-
-## Public projection
-
-The canonical read model is built by
-`packages/server/src/repowise/server/routers/code_health/canonical.py` from
-persisted rows only. It is exposed at:
+## Read-model flow
 
 ```text
-GET /api/repos/{repo_id}/health/canonical
+checkout + ref + as_of + score policy
+                  |
+                  v
+        analyzer results + evidence
+                  |
+                  v
+   raw facts -> normalized facts -> snapshot
+                  |
+       +----------+-----------+
+       v                      v
+ canonical detail       ranking projection
+ REST / CLI / MCP             |
+       |                      v
+       +---------------> public ranking UI
 ```
 
-The CLI and MCP use the same projection builder. Evidence summaries are always
-available; detailed evidence references require `include_evidence=true` (REST
-or MCP) or `--explain` (CLI). This keeps API/UI payloads bounded and prevents
-raw source or security payloads from entering normal logs.
+Derived `band` and `facets` принадлежат ranking projection; это derived band + facets,
+а не вторая scoring system. Для текущего контракта no schema migration is introduced:
+миграционная граница — `0066`.
 
-The materialized public ranking is a separate read model in
-`repository_health_ranking`. It contains only a public repository headline,
-score, grade, dimensions, evidence coverage, freshness and score delta. The
-default eligibility policy requires a public repository, a `fast` or `full`
-snapshot, a non-stale score and at least 50% evidence coverage. Use:
+## Evidence in code
 
-```text
-GET /api/health/ranking
-GET /api/health/ranking/compare?repo_ids=<id>,<id>
-GET /api/health/ranking/trend?repo_ids=<id>,<id>&limit=12
-```
+| Ответственность | Файл |
+| --- | --- |
+| score composition and weights | [`composite.py`](../../packages/core/src/repowise/core/analysis/health/composite.py) |
+| eligibility, bands and stable ordering | [`ranking_projection.py`](../../packages/core/src/repowise/core/analysis/health/ranking_projection.py) |
+| persisted canonical report | [`canonical.py`](../../packages/server/src/repowise/server/routers/code_health/canonical.py) |
+| public ranking API | [`public_health.py`](../../packages/server/src/repowise/server/routers/public_health.py) |
+| ranking response contract | [`health_ranking.py`](../../packages/server/src/repowise/server/schemas/health_ranking.py) |
+| detail UI | [`canonical-summary.tsx`](../../packages/web/src/components/code-health/canonical-summary.tsx) |
+| ranking UI | [`ranking-page.tsx`](../../packages/web/src/components/health-ranking/ranking-page.tsx) |
 
-`/ranking` is the public web view. It keeps filters in the URL, shows
-unavailable/stale states explicitly and never exposes `local_path` or raw
-evidence. Rebuild the projection after importing old snapshots with
-`rebuild_health_ranking` or the corresponding server maintenance command.
+## Failure isolation
 
-### Cross-surface ownership and compatibility
+Native subprocesses run through bounded adapters with timeout, output caps and
+redacted diagnostics. A missing capability becomes `skipped`, insufficient data
+becomes `inconclusive`, and a failed parser/process becomes `error`; unrelated
+analyzers can still contribute evidence. Operational caps and source commits
+are configured in `config/analyzers/` and checked against `vendor/SOURCES.lock`.
 
-The canonical projection is the single source of truth for the repository
-headline. The data flow is:
-
-```text
-HealthScoreProjection
-        ├── canonical REST ──┐
-        ├── MCP / CLI ───────┼── same 0..100 repository contract
-        ├── detail UI ───────┘
-        └── ranking projection ── derived band + facets ── ranking UI
-```
-
-The legacy file/module `0..10` KPIs remain available for compatibility, but no
-consumer may substitute them for `score_projection.overall_score`. `band` and
-`facets` are additive API fields and are derived from the canonical projection;
-there is no persisted band column and no schema migration is introduced by
-this alignment. Older clients can ignore the new fields, while current clients
-fall back to local band derivation when reading a pre-band response.
-
-The default public ranking policy is evaluated at read time as well as when a
-row is published. This prevents an expired freshness window or reduced
-evidence coverage from silently remaining healthy in a stale materialized row.
-
-### Recovery after an incomplete gate
-
-Keep migrations `0064..0066` during application rollback. Restore only the
-application/UI consumer commit, then run the focused completion check and
-`make health-replay` to rebuild ranking rows from committed snapshots. Verify
-public visibility, eligibility, freshness, `0..100` rendering and the browser
-ranking flow before reopening release. Raw facts must not be recollected just
-to recover a UI projection. Native/vendor verification is a separate gate;
-its timeout, platform skip or redacted diagnostic must be attached to the
-release artifact.
-
-## Failure isolation and limits
-
-`packages/core/src/repowise/core/analysis/health/integrations/process.py`
-owns bounded native subprocesses: argv execution, environment allow-list,
-timeout, stdout/stderr cap and redacted diagnostics. The runner converts a
-missing capability to `skipped`, insufficient data to `inconclusive`, and a
-failed process/parser to `error`; unrelated analyzer results remain available.
-Operational caps, retry budget, cache TTL/stale policy, history tiers and CI
-status policy are versioned in `config/analyzers/native-tools.yaml` and
-`config/analyzers/forge.yaml`.
-
-## Verification entry points
-
-```bash
-make vendor-verify
-make build-native
-make test-python
-make test-native
-make test-composition
-make health-sample
-make health-replay
-make health-completion
-```
-
-The full redacted gate is `uv run python scripts/verify_health_stack.py --full`.
-It verifies source provenance, migrations, native golden parsers, replay
-deduplication, rescore invariants and canonical projection stability. See
-`uv run python scripts/verify_health_completion.py --run-tests` for the
-source-level completion gate and focused ranking matrix. See
-`docs/reference/HEALTH_ANALYZER.md` for report usage and
-`docs/reference/NATIVE_TOOLS.md` for source/toolchain details.
+Recovery command: `make health-replay`. It rebuilds projections from committed
+snapshots; raw facts must not be recollected just to repair a UI projection.
+Полный composition gate — `uv run python scripts/verify_health_stack.py --full`.
 
 ## See Also
 
-- [Health Analyzer reference](../reference/HEALTH_ANALYZER.md) — score, status and API semantics
-- [Native tool map](../reference/NATIVE_TOOLS.md) — pinned sources and toolchain policy
+- [Architecture](../repository-health/architecture.md) — полная схема с границами слоёв.
+- [API](../repository-health/api.md) — публичные response contracts.
+- [Native tools](../reference/NATIVE_TOOLS.md) — provenance и pinned sources.
